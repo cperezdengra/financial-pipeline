@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from scipy.stats import t, norm
+from scipy.stats import t, norm, skewnorm, cauchy
 
 def simular_monte_carlo(hist, n_simulaciones=1000, dias_pred=90, detectar_inicio=False):
     # 1. Análisis de Retornos Históricos
@@ -16,8 +16,8 @@ def simular_monte_carlo(hist, n_simulaciones=1000, dias_pred=90, detectar_inicio
 
     # 2. Matriz de Transición de Markov
     matriz_transicion = np.array([
-        [0.95, 0.05], # Es muy probable seguir en calma si ya estás en calma
-        [0.15, 0.85]  # Si entras en caos, es probable que te quedes ahí un tiempo
+        [0.95, 0.05], # 
+        [0.15, 0.85]  #
     ])
 
     # Detección de estado inicial
@@ -39,14 +39,35 @@ def simular_monte_carlo(hist, n_simulaciones=1000, dias_pred=90, detectar_inicio
             estado_actual = np.random.choice([0, 1], p=probabilidades)
 
             if estado_actual == 0:
-                retorno_dia = norm.rvs(loc=mu_calma, scale=sigma_calma)
-            else:
-                ruido_t = t.rvs(df=3)
-                retorno_dia = mu_caos + (ruido_t * sigma_caos)
+                # ESTADO 0: Régimen Bull / Calma
+                prob_sub_estado = np.random.rand()
+                
+                if prob_sub_estado > 0.15:
+                    # 85% de probabilidad: Crecimiento Normal (Distribución Gaussiana)
+                    retorno_dia = norm.rvs(loc=mu_calma, scale=sigma_calma)
+                else:
+                    # 15% de probabilidad: Sub-régimen de Euforia (Distribución Skew-Normal)
+                    ruido_euforia = skewnorm.rvs(a=4)
+                    retorno_dia = (abs(mu_calma) * 1.5) + (ruido_euforia * sigma_calma * 0.8)
 
+            else:
+                # ESTADO 1: Régimen Bear / Caos
+                prob_sub_estado = np.random.rand()
+                
+                if prob_sub_estado > 0.10:
+                    # 90% de probabilidad: Caos Estándar (Distribución t-Student)
+                    ruido_t = t.rvs(df=3)
+                    retorno_dia = mu_caos + (ruido_t * sigma_caos)
+                else:
+                    # 10% de probabilidad: Sub-régimen de Flash Crash (Distribución Cauchy)
+                    ruido_crash = cauchy.rvs(loc=0, scale=1)
+                    ruido_limitado = np.clip(ruido_crash, -10, 5) 
+                    retorno_dia = mu_caos + (ruido_limitado * sigma_caos * 1.5)
+
+            # Actualización del precio basada en el retorno calculado
             nuevo_precio = precios_camino[-1] * (1 + retorno_dia)
             precios_camino.append(max(nuevo_precio, 0.0001))
-            
+
         simulaciones[:, s] = precios_camino[1:]
 
     # 3. Preparación de Datos para Streamlit
