@@ -5,6 +5,7 @@ import numpy as np
 import plotly.graph_objects as go
 import os
 from mc_motor import simular_monte_carlo
+from long_term_mc import simular_jump_diffusion 
 
 # Configuracion visual
 st.set_page_config(page_title="Analisis Pro de Inversiones", layout="wide")
@@ -64,7 +65,7 @@ for ticker in tickers:
     m5.metric("Sharpe Ratio", f"{sharpe:.2f}")
 
     # --- TABS ---
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Analisis Visual", "Dividendos", "Ficha Tecnica", "Guia de Uso", "Simulacion Monte Carlo", "Simulacion Monte Carlo (cierre)"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Analisis Visual", "Dividendos", "Ficha Tecnica", "Guia de Uso", "Simulacion Monte Carlo", "Simulacion Monte Carlo (cierre)", "Simulacion a largo plazo MC (Ising+Brownian model)"])
     
     with tab1:
         fig = go.Figure()
@@ -204,6 +205,76 @@ for ticker in tickers:
                 c1.metric("Escenario Central (P50)", f"{curvas['Neutral (P50)'][-1]:.2f}")
                 c2.metric("Error Est. Simulación", f"{error:.5f}")
                 c3.metric("Estado Inicial", est_ini)
+
+    with tab7:
+        st.subheader(f"Proyección Estocástica (Jump-Diffusion): {ticker}")
+        st.markdown("Modelo híbrido: **Movimiento Browniano (Normalidad)** + **Procesos de Poisson (Caos/Pánico)**")
+        
+        c_p1, c_p2, c_p3 = st.columns(3)
+        anios_lp = c_p1.slider("Años a simular:", 1, 10, 5)
+        n_sim_lp = c_p2.selectbox("Nº Simulaciones:", [1000, 5000, 10000], index=1)
+        prob_caos = c_p3.slider("Prob. diaria de Caos (Ising effect):", 0.001, 0.05, 0.015, format="%.3f")
+        
+        if st.button(f"Simular Largo Plazo para {ticker}", key=f"lp_{ticker}"):
+            with st.spinner(f'Calculando {n_sim_lp} universos paralelos con shocks de mercado...'):
+                fechas_lp, curvas_lp, caminos_ejemplo = simular_jump_diffusion(hist, anios=anios_lp, n_simulaciones=n_sim_lp, prob_caos=prob_caos)
+                
+                fig_lp = go.Figure()
+                
+                # Contexto histórico (últimos 2 años)
+                hist_view = hist.tail(500)
+                fig_lp.add_trace(go.Scatter(x=hist_view.index, y=hist_view['Close'], name="Histórico Real", line=dict(color='black', width=2)))
+                
+                # 1. Dibujar el Cono de Probabilidades (Percentiles)
+                colores_lp = {'Techo Histórico (P95)': 'rgba(0, 128, 0, 0.4)', 
+                              'Tendencia Central (P50)': 'blue', 
+                              'Suelo de Riesgo (P05)': 'rgba(255, 0, 0, 0.4)'}
+                
+                for nombre, valores in curvas_lp.items():
+                    grosor = 3 if 'Central' in nombre else 1
+                    fig_lp.add_trace(go.Scatter(x=fechas_lp, y=valores, name=nombre, line=dict(width=grosor, color=colores_lp[nombre])))
+
+                # 2. Dibujar 3 Caminos Caóticos (Para ver los saltos)
+                for i in range(caminos_ejemplo.shape[1]):
+                    fig_lp.add_trace(go.Scatter(x=fechas_lp, y=caminos_ejemplo[:, i], name=f"Ruta Posible {i+1}", 
+                                                line=dict(width=1, dash='dot', color='rgba(128, 128, 128, 0.6)')))
+
+                fig_lp.update_layout(title=f"Evolución a {anios_lp} años (Mostrando 3 rutas específicas vs. Media)", height=600)
+                st.plotly_chart(fig_lp, use_container_width=True)
+                
+                st.info(f"Fíjate en las líneas grises punteadas: representan 3 futuros posibles elegidos al azar. A diferencia del cono azul que es suave, estas líneas muestran **caídas abruptas** cuando el componente de Caos ($\lambda={prob_caos}$) se activa.")
+
+                # --- SECCIÓN: VALORACIÓN CUANTITATIVA ---
+                st.markdown("### Diagnóstico de la Simulación")
+                
+                from long_term_mc import evaluar_salud_proyeccion # Import local
+                valoracion, color_val, ret_esp, ries_max = evaluar_salud_proyeccion(curvas_lp, precio_fin)
+                
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.markdown(f"**Estado General:**")
+                    st.markdown(f"<h3 style='color:{color_val};'>{valoracion}</h3>", unsafe_allow_html=True)
+                
+                with col2:
+                    st.metric("Retorno Mediano Est. (P50)", f"{ret_esp:+.2%}")
+                    st.caption("Expectativa central tras X años.")
+                
+                with col3:
+                    st.metric("Riesgo de 'Cisne Negro' (P05)", f"{ries_max:.2%}")
+                    st.caption("Peor escenario estadístico (Caos).")
+
+                # Análisis de convergencia de tendencias
+                st.markdown("---")
+                st.markdown("**Interpretación de Fuerzas:**")
+                
+                if ret_esp > 0 and abs(ries_max) < ret_esp:
+                    st.success("Tendencia Dominante: Las tres métricas muestran resiliencia. El crecimiento orgánico del activo supera la probabilidad de shocks de Caos.")
+                elif ret_esp > 0 and abs(ries_max) > ret_esp:
+                    st.warning("Volatilidad Dominante: Aunque la media sube, un evento de Caos podría borrar años de ganancias. Es un activo para perfiles agresivos.")
+                else:
+                    st.error("Caos Dominante: La frecuencia de saltos o la baja rentabilidad histórica sugieren que el activo no compensa el riesgo a largo plazo.")
+
 
 st.sidebar.markdown("---")
 st.sidebar.caption("Pipeline Optimizado para Mac")
