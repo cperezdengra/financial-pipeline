@@ -211,9 +211,9 @@ for ticker in tickers:
         st.markdown("Modelo híbrido: **Movimiento Browniano (Normalidad)** + **Procesos de Poisson (Caos/Pánico)**")
         
         c_p1, c_p2, c_p3 = st.columns(3)
-        anios_lp = c_p1.slider("Años a simular:", 1, 10, 5)
-        n_sim_lp = c_p2.selectbox("Nº Simulaciones:", [1000, 5000, 10000], index=1)
-        prob_caos = c_p3.slider("Prob. diaria de Caos (Ising effect):", 0.001, 0.05, 0.015, format="%.3f")
+        anios_lp = c_p1.slider("Años a simular:", 1, 10, 5, key=f"lp_anios_{ticker}")
+        n_sim_lp = c_p2.selectbox("Nº Simulaciones:", [1000, 5000, 10000], index=1, key=f"lp_sims_{ticker}")
+        prob_caos = c_p3.slider("Prob. diaria de Caos (Ising effect):", 0.001, 0.05, 0.015, format="%.3f", key=f"lp_caos_{ticker}")
         
         if st.button(f"Simular Largo Plazo para {ticker}", key=f"lp_{ticker}"):
             with st.spinner(f'Calculando {n_sim_lp} universos paralelos con shocks de mercado...'):
