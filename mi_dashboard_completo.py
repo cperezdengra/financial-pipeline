@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import os
+from mc_motor import simular_monte_carlo
 
 # Configuracion visual
 st.set_page_config(page_title="Analisis Pro de Inversiones", layout="wide")
@@ -62,8 +63,9 @@ for ticker in tickers:
     m4.metric("Max Drawdown", f"{max_drawdown:.2%}", delta_color="inverse")
     m5.metric("Sharpe Ratio", f"{sharpe:.2f}")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["Analisis Visual", "Dividendos", "Ficha Tecnica", "Guia de Uso"])
-
+    # --- TABS ---
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Analisis Visual", "Dividendos", "Ficha Tecnica", "Guia de Uso", "Simulacion Monte Carlo"])
+    
     with tab1:
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=hist.index, y=hist['Close'], name="Precio", line=dict(color='green')))
@@ -80,6 +82,7 @@ for ticker in tickers:
             c1, c2 = st.columns(2)
             c1.write("**Ultimos pagos registrados:**")
             c1.dataframe(divs.tail(10))
+            # Fix compatible con pandas 3.x (reemplaza .last())
             div_anual = divs[divs.index > (divs.index.max() - pd.Timedelta(days=365))].sum()
             c2.metric("Dividend Yield Est.", f"{(div_anual/precio_fin):.2%}")
             c2.write(f"Total dividendos 12m: {div_anual:.2f}")
@@ -88,6 +91,12 @@ for ticker in tickers:
 
     with tab3:
         st.subheader(info.get('longName', ticker))
+        
+        tipo_activo = info.get('quoteType', 'N/A')
+        if tipo_activo == 'EQUITY':
+            st.info("Este activo es una Accion (Empresa individual)")
+        elif tipo_activo == 'ETF':
+            st.info("Este activo es una ETF (Fondo Cotizado)")
         
         m_cap = info.get('marketCap', 'N/A')
         m_cap_str = f"{m_cap:,}" if isinstance(m_cap, (int, float)) else "N/A"
@@ -103,21 +112,58 @@ for ticker in tickers:
             st.write(f"**Moneda:** {info.get('currency', 'N/A')}")
         
         st.markdown("---")
-        st.write("**Descripcion del Fondo:**")
-        st.write(info.get('longBusinessSummary', 'No hay descripcion disponible para este ticker.'))
+        st.write("**Descripcion Detallada:**")
+        st.write(info.get('longBusinessSummary', 'No hay descripcion disponible.'))
 
     with tab4:
         st.subheader("Explicacion de Funcionalidades")
-        st.write("Este dashboard replica la logica de analisis profesional de un terminal financiero:")
-        
         explicacion = """
-        * **CAGR (Compound Annual Growth Rate):** Es la tasa de retorno media anual. A diferencia del retorno total, permite comparar activos que han estado en cartera tiempos diferentes de forma equitativa.
-        * **Max Drawdown:** Indica la mayor caida porcentual desde un punto maximo anterior. Es vital para entender el riesgo real de perdida temporal y la tolerancia al riesgo del inversor.
-        * **Sharpe Ratio:** Mide la rentabilidad en relacion al riesgo (volatilidad). Un valor superior a 1.0 indica que el retorno compensa el riesgo asumido.
-        * **Beta:** Indica la sensibilidad del activo respecto al mercado general (normalmente el S&P 500). Una Beta de 1.0 significa que se mueve igual que el mercado.
-        * **Analisis en RAM:** Este sistema no almacena datos historicos en disco para ahorrar espacio en iCloud. Cada ejecucion solicita datos frescos de la API.
+        * **CAGR (Compound Annual Growth Rate):** Es la tasa de retorno media anual. Permite comparar activos de forma equitativa.
+        * **Max Drawdown:** Indica la mayor caida porcentual desde un punto maximo anterior. Vital para entender el riesgo de perdida temporal.
+        * **Sharpe Ratio:** Mide la rentabilidad en relacion al riesgo (volatilidad). >1.0 es bueno.
+        * **Beta:** Sensibilidad respecto al mercado general (S&P 500).
         """
         st.markdown(explicacion)
+
+    with tab5:
+        st.subheader(f"Simulacion Monte Carlo: {ticker}")
+        # Uso de claves únicas para mantener el estado en Streamlit
+        n_sim = st.select_slider(f"Número de Realizaciones para {ticker}:", options=[100, 500, 1000, 5000], value=1000, key=f"sim_{ticker}")
+        
+        if st.button(f"Lanzar Simulación para {ticker}", key=f"btn_{ticker}"):
+            with st.spinner('Ejecutando Caminos Aleatorios...'):
+                fechas_futu, curvas, error = simular_monte_carlo(hist, n_simulaciones=n_sim)
+                
+                fig_mc = go.Figure()
+                # Histórico reciente
+                hist_view = hist.tail(120)
+                fig_mc.add_trace(go.Scatter(x=hist_view.index, y=hist_view['Close'], name="Histórico", line=dict(color='black', width=2)))
+                
+                # Escenarios con colores RGBA para mejor visualización
+                colores = {
+                    'Muy Optimista': 'rgba(0, 128, 0, 0.9)', 
+                    'Optimista': 'rgba(0, 128, 0, 0.4)', 
+                    'Neutral': 'rgba(0, 0, 255, 1.0)', 
+                    'Conservador': 'rgba(255, 165, 0, 0.4)', 
+                    'Pesimista': 'rgba(255, 0, 0, 0.9)'
+                }
+                
+                for nombre, valores in curvas.items():
+                    fig_mc.add_trace(go.Scatter(
+                        x=fechas_futu, 
+                        y=valores, 
+                        name=nombre, 
+                        line=dict(dash='dash' if 'Neutral' not in nombre else 'solid', color=colores.get(nombre, 'grey'))
+                    ))
+
+                fig_mc.update_layout(title=f"Abanico de Probabilidades (Monte Carlo 90d) - {ticker}", height=500)
+                st.plotly_chart(fig_mc, use_container_width=True)
+                
+                # Métricas de la simulación
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Escenario Central (P50)", f"{curvas['Neutral'][-1]:.2f}")
+                c2.metric("Error Est. Simulación", f"{error:.5f}")
+                c3.metric("Confianza (N)", f"{n_sim}")
 
 st.sidebar.markdown("---")
 st.sidebar.caption("Pipeline Optimizado para Mac")
