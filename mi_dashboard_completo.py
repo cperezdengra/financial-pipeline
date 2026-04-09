@@ -64,7 +64,7 @@ for ticker in tickers:
     m5.metric("Sharpe Ratio", f"{sharpe:.2f}")
 
     # --- TABS ---
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Analisis Visual", "Dividendos", "Ficha Tecnica", "Guia de Uso", "Simulacion Monte Carlo"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Analisis Visual", "Dividendos", "Ficha Tecnica", "Guia de Uso", "Simulacion Monte Carlo", "Simulacion Monte Carlo (cierre)"])
     
     with tab1:
         fig = go.Figure()
@@ -132,7 +132,7 @@ for ticker in tickers:
         
         if st.button(f"Lanzar Simulación para {ticker}", key=f"btn_{ticker}"):
             with st.spinner('Ejecutando Caminos Aleatorios...'):
-                fechas_futu, curvas, error = simular_monte_carlo(hist, n_simulaciones=n_sim)
+                fechas_futu, curvas, error, _ = simular_monte_carlo(hist, n_simulaciones=n_sim)
                 
                 fig_mc = go.Figure()
                 # Histórico reciente
@@ -141,11 +141,11 @@ for ticker in tickers:
                 
                 # Escenarios con colores RGBA para mejor visualización
                 colores = {
-                    'Muy Optimista': 'rgba(0, 128, 0, 0.9)', 
-                    'Optimista': 'rgba(0, 128, 0, 0.4)', 
-                    'Neutral': 'rgba(0, 0, 255, 1.0)', 
-                    'Conservador': 'rgba(255, 165, 0, 0.4)', 
-                    'Pesimista': 'rgba(255, 0, 0, 0.9)'
+                    'Muy Optimista (P95)': 'rgba(0, 128, 0, 0.9)', 
+                    'Optimista (P75)': 'rgba(0, 128, 0, 0.4)', 
+                    'Neutral (P50)': 'rgba(0, 0, 255, 1.0)', 
+                    'Conservador (P25)': 'rgba(255, 165, 0, 0.4)', 
+                    'Pesimista (P5)': 'rgba(255, 0, 0, 0.9)'
                 }
                 
                 for nombre, valores in curvas.items():
@@ -161,9 +161,49 @@ for ticker in tickers:
                 
                 # Métricas de la simulación
                 c1, c2, c3 = st.columns(3)
-                c1.metric("Escenario Central (P50)", f"{curvas['Neutral'][-1]:.2f}")
-                c2.metric("Error Est. Simulación", f"{error:.5f}")
                 c3.metric("Confianza (N)", f"{n_sim}")
+
+    with tab6:
+        st.subheader(f"Monte Carlo con Detección de Cierre: {ticker}")
+        
+        n_sim_c = st.select_slider(f"Número de Realizaciones (Cierre) para {ticker}:", options=[100, 500, 1000, 5000], value=1000, key=f"sim_c_{ticker}")
+        
+        st.caption("Esta simulación analiza el último cierre para decidir si empieza en modo Calma o Caos.")
+
+        if st.button(f"Lanzar Simulación (Cierre) para {ticker}", key=f"btn_c_{ticker}"):
+            with st.spinner('Analizando cierre y ejecutando...'):
+                fechas_futu, curvas, error, est_ini = simular_monte_carlo(hist, n_simulaciones=n_sim_c, detectar_inicio=True)
+                
+                estado_str = "CAOS (Volatilidad Alta)" if est_ini == 1 else "CALMA (Normalidad)"
+                st.info(f"Estado inicial detectado: **{estado_str}**")
+
+                fig_mc = go.Figure()
+                hist_view = hist.tail(120)
+                fig_mc.add_trace(go.Scatter(x=hist_view.index, y=hist_view['Close'], name="Histórico", line=dict(color='black', width=2)))
+                
+                colores = {
+                    'Muy Optimista (P95)': 'rgba(0, 128, 0, 0.9)', 
+                    'Optimista (P75)': 'rgba(0, 128, 0, 0.4)', 
+                    'Neutral (P50)': 'rgba(0, 0, 255, 1.0)', 
+                    'Conservador (P25)': 'rgba(255, 165, 0, 0.4)', 
+                    'Pesimista (P5)': 'rgba(255, 0, 0, 0.9)'
+                }
+                
+                for nombre, valores in curvas.items():
+                    fig_mc.add_trace(go.Scatter(
+                        x=fechas_futu, 
+                        y=valores, 
+                        name=nombre, 
+                        line=dict(dash='dash' if 'Neutral' not in nombre else 'solid', color=colores.get(nombre, 'grey'))
+                    ))
+
+                fig_mc.update_layout(title=f"Markov Chain Monte Carlo (Detección: {estado_str})", height=500)
+                st.plotly_chart(fig_mc, use_container_width=True)
+                
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Escenario Central (P50)", f"{curvas['Neutral (P50)'][-1]:.2f}")
+                c2.metric("Error Est. Simulación", f"{error:.5f}")
+                c3.metric("Estado Inicial", est_ini)
 
 st.sidebar.markdown("---")
 st.sidebar.caption("Pipeline Optimizado para Mac")

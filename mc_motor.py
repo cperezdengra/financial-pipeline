@@ -1,56 +1,66 @@
-import numpy as np
 import pandas as pd
+import numpy as np
+from scipy.stats import t, norm
 
-def simular_monte_carlo(df_historico, dias_a_predecir=90, n_simulaciones=1000):
-    # Calcular retornos logarítmicos
-    log_returns = np.log(1 + df_historico['Close'].pct_change()).dropna()
+def simular_monte_carlo(hist, n_simulaciones=1000, dias_pred=90, detectar_inicio=False):
+    # 1. Análisis de Retornos Históricos
+    retornos = hist['Close'].pct_change().dropna()
+    ultimo_precio = hist['Close'].iloc[-1]
     
-    # Parámetros estadísticos
-    u = log_returns.mean()  # Drift (Tendencia media)
-    var = log_returns.var() # Varianza
-    stdev = log_returns.std() # Volatilidad
+    # Parámetros por régimen (estimados del histórico)
+    mu_calma = retornos[retornos > retornos.quantile(0.2)].mean()
+    sigma_calma = retornos[retornos > retornos.quantile(0.2)].std()
     
-    # Cálculo del Drift ajustado
-    drift = u - (0.5 * var)
-    
-    # Generar movimientos aleatorios (Brownian Motion)
-    # Z representa el shock aleatorio del mercado
-    Z = np.random.normal(size=(dias_a_predecir, n_simulaciones))
-    
-    # Matriz de retornos diarios proyectados
-    daily_returns = np.exp(drift + stdev * Z)
-    
-    # Proyección de precios inicializando en el último precio real
-    precio_inicial = df_historico['Close'].iloc[-1]
-    price_list = np.zeros_like(daily_returns)
-    price_list[0] = precio_inicial * daily_returns[0]
-    
-    for t in range(1, dias_a_predecir):
-        price_list[t] = price_list[t-1] * daily_returns[t]
-    
-    # Cálculo de Escenarios (Percentiles)
-    # 95% = Muy Optimista, 75% = Optimista, 50% = Mediana, etc.
-    escenarios = {
-        "Muy Optimista (P95)": price_list[-1, :], 
-        "Optimista (P75)": price_list[-1, :],
-        "Neutral (P50)": price_list[-1, :],
-        "Conservador (P25)": price_list[-1, :],
-        "Pesimista (P05)": price_list[-1, :]
-    }
-    
-    # Creamos un eje de tiempo para la gráfica
-    fechas_futu = pd.date_range(start=df_historico.index[-1], periods=dias_a_predecir + 1, freq='B')[1:]
-    
-    # Calculamos las líneas de evolución para cada percentil
+    mu_caos = retornos[retornos < retornos.quantile(0.2)].mean()
+    sigma_caos = retornos[retornos < retornos.quantile(0.2)].std()
+
+    # 2. Matriz de Transición de Markov
+    matriz_transicion = np.array([
+        [0.95, 0.05], # Es muy probable seguir en calma si ya estás en calma
+        [0.15, 0.85]  # Si entras en caos, es probable que te quedes ahí un tiempo
+    ])
+
+    # Detección de estado inicial
+    if detectar_inicio:
+        p20 = retornos.quantile(0.2)
+        estado_inicial = 1 if retornos.iloc[-1] < p20 else 0
+    else:
+        estado_inicial = 0
+
+    simulaciones = np.zeros((dias_pred, n_simulaciones))
+
+    for s in range(n_simulaciones):
+        precios_camino = [ultimo_precio]
+        estado_actual = estado_inicial 
+        
+        for d in range(dias_pred):
+            # Determinamos el estado del día siguiente usando la cadena de Markov
+            probabilidades = matriz_transicion[estado_actual]
+            estado_actual = np.random.choice([0, 1], p=probabilidades)
+
+            if estado_actual == 0:
+                retorno_dia = norm.rvs(loc=mu_calma, scale=sigma_calma)
+            else:
+                ruido_t = t.rvs(df=3)
+                retorno_dia = mu_caos + (ruido_t * sigma_caos)
+
+            nuevo_precio = precios_camino[-1] * (1 + retorno_dia)
+            precios_camino.append(max(nuevo_precio, 0.0001))
+            
+        simulaciones[:, s] = precios_camino[1:]
+
+    # 3. Preparación de Datos para Streamlit
+    ultima_fecha = hist.index[-1]
+    fechas_futu = pd.date_range(start=ultima_fecha + pd.Timedelta(days=1), periods=dias_pred, freq='B')
+
     curvas = {
-        "Muy Optimista": np.percentile(price_list, 95, axis=1),
-        "Optimista": np.percentile(price_list, 75, axis=1),
-        "Neutral": np.percentile(price_list, 50, axis=1),
-        "Conservador": np.percentile(price_list, 25, axis=1),
-        "Pesimista": np.percentile(price_list, 5, axis=1)
+        'Muy Optimista (P95)': np.percentile(simulaciones, 95, axis=1),
+        'Optimista (P75)': np.percentile(simulaciones, 75, axis=1),
+        'Neutral (P50)': np.percentile(simulaciones, 50, axis=1),
+        'Conservador (P25)': np.percentile(simulaciones, 25, axis=1),
+        'Pesimista (P5)': np.percentile(simulaciones, 5, axis=1)
     }
     
-    # El error estándar de la media en MC es sigma / sqrt(N)
-    error_est = stdev / np.sqrt(n_simulaciones)
+    error = np.std(simulaciones[-1, :]) / np.sqrt(n_simulaciones)
     
-    return fechas_futu, curvas, error_est
+    return fechas_futu, curvas, error, estado_inicial
