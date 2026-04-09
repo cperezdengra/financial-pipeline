@@ -7,7 +7,7 @@ Un ecosistema avanzado de análisis financiero diseñado para la toma de decisio
 
 ---
 
-## 🚀 Funcionalidades Clave
+## Funcionalidades Clave
 
 ### 1. Análisis Pro de Métricas
 Visualización instantánea de los KPIs vitales para cualquier inversor:
@@ -37,7 +37,7 @@ El núcleo del proyecto integra modelos matemáticos avanzados para predecir el 
 
 ---
 
-## 📦 Instalación y Despliegue
+## Instalación y Despliegue
 
 ### Requisitos Previos
 *   Python 3.9 o superior.
@@ -63,7 +63,7 @@ El núcleo del proyecto integra modelos matemáticos avanzados para predecir el 
 
 ---
 
-## 📂 Estructura del Proyecto
+## Estructura del Proyecto
 
 *   `mi_dashboard_completo.py`: Punto de entrada principal y orquestador de la UI en Streamlit.
 *   `mc_motor.py`: Motor de simulación de corto plazo con lógica de estados de Markov.
@@ -72,7 +72,7 @@ El núcleo del proyecto integra modelos matemáticos avanzados para predecir el 
 
 ---
 
-## 👨‍💻 Autor
+## Autor
 Proyecto desarrollado por **Carlos Pérez Dengra**.
 
 > [!NOTE]
