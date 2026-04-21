@@ -275,6 +275,109 @@ for ticker in tickers:
                 else:
                     st.error("Caos Dominante: La frecuencia de saltos o la baja rentabilidad histórica sugieren que el activo no compensa el riesgo a largo plazo.")
 
+    with tab8:
+        st.subheader(f"Análisis de Diversificación: {ticker}")
+        st.markdown("La diversificación es la mejor herramienta para sobrevivir a los escenarios de 'Caos' que vimos en la pestaña anterior. Descubre cómo encaja este activo en tu cartera global.")
+
+        # Extraer datos clave del activo de forma segura
+        sector = info.get('sector', 'Mixto / No Aplica')
+        tipo = info.get('quoteType', 'Desconocido')
+        beta = info.get('beta', 1.0)
+        
+        # Validación de seguridad por si el beta viene vacío de la API
+        if not isinstance(beta, (int, float)):
+            beta = 1.0
+
+        # --- 1. PERFIL DE RIESGO DEL ACTIVO ---
+        st.markdown("### Perfil del Activo en Cartera")
+        st.markdown(f"> **Tipo:** `{tipo}` | **Sector Principal:** `{sector}` | **Beta (Volatilidad):** `{beta}`")
+
+        # --- 2. RECOMENDACIÓN ESTRATÉGICA (Lógica Condicional) ---
+        st.markdown("### 💡 Recomendación Estratégica")
+        
+        # Analizamos concentración por tipo
+        if tipo == 'ETF' or tipo == 'MUTUALFUND':
+            st.info(f"**Ventaja Estructural:** {ticker} es un fondo o ETF. Ya contiene una cesta de valores, lo que te proporciona una diversificación base. Tu tarea ahora es evitar solapar activos (ej: no comprar este fondo si ya tienes otro que invierta en las mismas 50 empresas de tecnología).")
+        elif tipo == 'EQUITY':
+            st.warning(f"**Riesgo Específico (Stock Picking):** {ticker} es una acción individual. Estás asumiendo un riesgo muy alto de concentración. Si la gestión de la empresa falla, tu cartera sufrirá un golpe directo. Es vital diluir este riesgo.")
+        
+        # Analizamos nerviosismo por Beta
+        if beta > 1.2:
+            st.error(f"**Activo Acelerador:** Su Beta de {beta} indica que es mucho más agresivo que el mercado. En días buenos, subirá como un cohete, pero en los malos caerá más rápido. Necesitas equilibrarlo con activos 'ancla' (monetarios o renta fija).")
+        elif beta < 0.8:
+            st.success(f"**Activo Ancla:** Su Beta de {beta} indica que amortigua las caídas. Es ideal para estabilizar tu cartera, lo que te permite el lujo de añadir activos más volátiles o cuánticos (como QTUM) en otro rincón de tu portfolio.")
+        else:
+            st.write("⚖️ **Volatilidad Neutral:** El activo baila al mismo ritmo que el mercado general.")
+
+        st.markdown("---")
+
+        # --- 3. MATRIZ DE COMPLEMENTARIEDAD (Análisis en Tabla) ---
+        st.markdown("### 📊 Matriz de Complementariedad")
+        st.markdown("Si mantienes este activo, estadísticamente deberías buscar estos complementos para reducir tu riesgo total (Sharpe más alto) sin sacrificar la rentabilidad media:")
+
+        # Lógica para sugerir activos que descorrelacionen
+        if sector in ['Technology', 'Communication Services', 'Consumer Cyclical']:
+            comp_1 = "Salud / Consumo Defensivo (Ej. XLV, XLP)"
+            riesgo_act = "Burbujas tecnológicas, subida de tipos de interés"
+        elif sector in ['Financial Services', 'Energy', 'Industrials', 'Real Estate']:
+            comp_1 = "Tecnología / Oro (Ej. QQQ, IAU)"
+            riesgo_act = "Ciclos económicos recesivos, caída de materias primas"
+        else:
+            comp_1 = "Renta Variable Global General (Ej. IWDA.AS, VOO)"
+            riesgo_act = "Riesgo de concentración local o sectorial"
+
+        if tipo in ['ETF', 'MUTUALFUND']:
+             comp_2 = "Fondos Monetarios o Bonos (Ej. XEON.DE, Groupama)"
+             efecto_2 = "Hucha de liquidez para comprar en las caídas"
+        else:
+             comp_2 = "ETF Global (MSCI World) o del mismo sector"
+             efecto_2 = "Dilución radical del riesgo de quiebra empresarial"
+
+        # Crear dataframe para visualización limpia
+        tabla_diversificacion = {
+            "Debilidad de tu activo actual": [riesgo_act, "Caídas prolongadas del mercado (Drawdowns)"],
+            "Activo Complementario Sugerido": [comp_1, comp_2],
+            "Efecto Buscado en Cartera": ["Descorrelación y cobertura", efecto_2]
+        }
+
+        import pandas as pd
+        df_div = pd.DataFrame(tabla_diversificacion)
+        
+        # Mostrar la tabla nativa de Streamlit (sin índice para que quede más limpia)
+        st.table(df_div.assign(hack='').set_index('hack'))
+
+        st.caption("Nota Cuantitativa: La verdadera diversificación se logra combinando activos que tengan una correlación estadística cercana a 0 (o negativa) entre sí.")
+
+
+
+
+
+
+
+
+
+
+# --- SECCIÓN DE SETTINGS EN EL SIDEBAR ---
+st.sidebar.divider() # Añade una línea divisoria visual
+
+with st.sidebar.expander("⚙️ Configuración de Usuario"):
+    # Usamos max_chars para forzar el límite técnico en el navegador
+    nombre_user = st.text_input("Nombre", max_chars=50, help="Máximo 50 caracteres")
+    apellidos_user = st.text_input("Apellidos", max_chars=100, help="Máximo 100 caracteres")
+    username_val = st.text_input("Nombre de Usuario", max_chars=20, help="Máximo 20 caracteres")
+    
+    # Usamos number_input para validar que sea una edad realista
+    edad_user = st.number_input("Edad", min_value=0, max_value=120, value=30, step=1)
+
+    if st.button("Guardar Perfil"):
+        # Esto guarda los datos en la memoria de la sesión de Streamlit
+        st.session_state['user_data'] = {
+            "nombre": nombre_user,
+            "apellidos": apellidos_user,
+            "username": username_val,
+            "edad": edad_user
+        }
+        st.success("¡Perfil actualizado!")
 
 st.sidebar.markdown("---")
 st.sidebar.caption("Pipeline Optimizado para Mac")

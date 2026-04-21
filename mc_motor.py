@@ -3,7 +3,7 @@ import numpy as np
 from scipy.stats import t, norm, skewnorm, cauchy
 
 def simular_monte_carlo(hist, n_simulaciones=1000, dias_pred=90, detectar_inicio=False):
-    # 1. Análisis de Retornos Históricos
+    # Análisis de Retornos Históricos
     retornos = hist['Close'].pct_change().dropna()
     ultimo_precio = hist['Close'].iloc[-1]
     
@@ -14,13 +14,13 @@ def simular_monte_carlo(hist, n_simulaciones=1000, dias_pred=90, detectar_inicio
     mu_caos = retornos[retornos < retornos.quantile(0.2)].mean()
     sigma_caos = retornos[retornos < retornos.quantile(0.2)].std()
 
-    # 2. Matriz de Transición de Markov
+    # Matriz de Transición de Markov (4 states)
     matriz_transicion = np.array([
         [0.95, 0.05], # 
         [0.15, 0.85]  #
     ])
 
-    # Detección de estado inicial
+    # Deteccion de estado inicial
     if detectar_inicio:
         p20 = retornos.quantile(0.2)
         estado_inicial = 1 if retornos.iloc[-1] < p20 else 0
@@ -39,7 +39,7 @@ def simular_monte_carlo(hist, n_simulaciones=1000, dias_pred=90, detectar_inicio
             estado_actual = np.random.choice([0, 1], p=probabilidades)
 
             if estado_actual == 0:
-                # ESTADO 0: Régimen Bull / Calma
+                # ESTADO 0: Régimen Oso / Calma
                 prob_sub_estado = np.random.rand()
                 
                 if prob_sub_estado > 0.15:
@@ -51,7 +51,7 @@ def simular_monte_carlo(hist, n_simulaciones=1000, dias_pred=90, detectar_inicio
                     retorno_dia = (abs(mu_calma) * 1.5) + (ruido_euforia * sigma_calma * 0.8)
 
             else:
-                # ESTADO 1: Régimen Bear / Caos
+                # ESTADO 1: Régimen Mapache / Caos
                 prob_sub_estado = np.random.rand()
                 
                 if prob_sub_estado > 0.10:
@@ -70,7 +70,7 @@ def simular_monte_carlo(hist, n_simulaciones=1000, dias_pred=90, detectar_inicio
 
         simulaciones[:, s] = precios_camino[1:]
 
-    # 3. Preparación de Datos para Streamlit
+    # Preparación de Datos para dashboard
     ultima_fecha = hist.index[-1]
     fechas_futu = pd.date_range(start=ultima_fecha + pd.Timedelta(days=1), periods=dias_pred, freq='B')
 
