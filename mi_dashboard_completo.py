@@ -65,7 +65,7 @@ for ticker in tickers:
     m5.metric("Sharpe Ratio", f"{sharpe:.2f}")
 
     # --- TABS ---
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Analisis Visual", "Dividendos", "Ficha Tecnica", "Guia de Uso", "Simulacion Monte Carlo", "Simulacion Monte Carlo (cierre)", "Simulacion a largo plazo MC (Ising+Brownian model)"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["Analisis Visual", "Dividendos", "Ficha Tecnica", "Guia de Uso", "Simulacion Monte Carlo", "Simulacion Monte Carlo (cierre)", "Simulacion a largo plazo MC (Ising+Brownian model)","Analisis de diversificacion"])
     
     with tab1:
         fig = go.Figure()
@@ -293,7 +293,7 @@ for ticker in tickers:
         st.markdown(f"> **Tipo:** `{tipo}` | **Sector Principal:** `{sector}` | **Beta (Volatilidad):** `{beta}`")
 
         # --- 2. RECOMENDACIÓN ESTRATÉGICA (Lógica Condicional) ---
-        st.markdown("### 💡 Recomendación Estratégica")
+        st.markdown("### Recomendación Estratégica")
         
         # Analizamos concentración por tipo
         if tipo == 'ETF' or tipo == 'MUTUALFUND':
@@ -307,12 +307,12 @@ for ticker in tickers:
         elif beta < 0.8:
             st.success(f"**Activo Ancla:** Su Beta de {beta} indica que amortigua las caídas. Es ideal para estabilizar tu cartera, lo que te permite el lujo de añadir activos más volátiles o cuánticos (como QTUM) en otro rincón de tu portfolio.")
         else:
-            st.write("⚖️ **Volatilidad Neutral:** El activo baila al mismo ritmo que el mercado general.")
+            st.write("**Volatilidad Neutral:** El activo baila al mismo ritmo que el mercado general.")
 
         st.markdown("---")
 
         # --- 3. MATRIZ DE COMPLEMENTARIEDAD (Análisis en Tabla) ---
-        st.markdown("### 📊 Matriz de Complementariedad")
+        st.markdown("### Matriz de Complementariedad")
         st.markdown("Si mantienes este activo, estadísticamente deberías buscar estos complementos para reducir tu riesgo total (Sharpe más alto) sin sacrificar la rentabilidad media:")
 
         # Lógica para sugerir activos que descorrelacionen
@@ -351,16 +351,49 @@ for ticker in tickers:
 
 
 
+# ==========================================
+# 1. TRUCO DE CSS DEFINITIVO (ELIMINA MÁRGENES)
+# ==========================================
+
+# ==========================================
+# 1. INICIALIZACIÓN DEL ESTADO (Siempre al principio del script)
+# ==========================================
+
+if 'user_data' not in st.session_state:
+    st.session_state['user_data'] = {
+        "nombre": "", 
+        "apellidos": "", 
+        "username": "", 
+        "edad": 30
+    }
 
 
+# ==========================================
+# 2. SIDEBAR (LOGO Y SALUDO ARRIBA DE TODO)
+# ==========================================
+import os
 
+# --- EL LOGO: PRIMERA LÍNEA DEL SIDEBAR ---
+ruta_logo = "logo.jpeg" 
+if os.path.exists(ruta_logo):
+    # Colocamos la imagen antes que cualquier otra cosa
+    st.sidebar.image(ruta_logo, use_container_width=True)
+else:
+    st.sidebar.markdown("### QUANT DASHBOARD")
 
+# --- EL SALUDO: JUSTO DEBAJO DEL LOGO ---
+nombre_actual = st.session_state['user_data'].get('nombre', '')
 
+if nombre_actual.strip() != "":
+    # Usamos un encabezado h2 para que resalte
+    st.sidebar.markdown(f"## ¡Hola, {nombre_actual}!")
+else:
+    st.sidebar.markdown("## ¡Hola!")
 
 # --- SECCIÓN DE SETTINGS EN EL SIDEBAR ---
 st.sidebar.divider() # Añade una línea divisoria visual
 
-with st.sidebar.expander("⚙️ Configuración de Usuario"):
+with st.sidebar.expander("Configuración de Usuario"):
     # Usamos max_chars para forzar el límite técnico en el navegador
     nombre_user = st.text_input("Nombre", max_chars=50, help="Máximo 50 caracteres")
     apellidos_user = st.text_input("Apellidos", max_chars=100, help="Máximo 100 caracteres")
@@ -381,3 +414,6 @@ with st.sidebar.expander("⚙️ Configuración de Usuario"):
 
 st.sidebar.markdown("---")
 st.sidebar.caption("Pipeline Optimizado para Mac")
+st.sidebar.markdown("---")
+st.sidebar.caption(f"© 2026 Financial Bear Buddies | v2.5")
+st.sidebar.caption("Desarrollado por Carlos Perez Dengra")
