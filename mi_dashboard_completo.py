@@ -6,8 +6,14 @@ import plotly.graph_objects as go
 import os
 from mc_motor import simular_monte_carlo
 from long_term_mc import simular_jump_diffusion 
+from utils import mostrar_splash_screen
 
 # Configuracion visual
+# Ejecutamos la transición antes de cargar el resto
+if 'ejecutado' not in st.session_state:
+    mostrar_splash_screen("logo.jpeg")
+    st.session_state['ejecutado'] = True
+
 st.set_page_config(page_title="Analisis Pro de Inversiones", layout="wide")
 st.title("Financial Bear buddies")
 
